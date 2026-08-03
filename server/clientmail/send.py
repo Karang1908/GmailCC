@@ -51,8 +51,10 @@ def check_recipients(meta: dict, cfg: dict) -> None:
     if blocked:
         raise SendBlocked(
             f"Recipient(s) not on the allowlist: {', '.join(blocked)}. "
-            f"allowed_recipients in config.json is set to {allowlist}. "
-            f"Add the address (or '@theirdomain.com') there, or clear the list to allow all."
+            f"allowed_recipients is currently {allowlist}.\n"
+            f"To lift the restriction entirely:   clientmail allow any\n"
+            f"To just add these:                  clientmail allow {' '.join(blocked)}\n"
+            f"The user must run one of those -- do not edit their config to work around it."
         )
 
 

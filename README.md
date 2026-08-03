@@ -260,7 +260,7 @@ and send yourself a test: a render is not proof it survives a real mail client.
 | `default_template` | used when a draft doesn't name one |
 | `brand` | `name`, `color`, `signoff`, `site` — fills the templates |
 | `paused` | `true` blocks all sending. Use while testing. |
-| `allowed_recipients` | `[]` allows anyone; `["@acme.com"]` allows a domain; ships restricted to one address |
+| `allowed_recipients` | `[]` (the default) allows anyone; `["@acme.com"]` restricts to a domain. Change with `clientmail allow` |
 | `max_attachment_mb` | total attachment budget, default 8 |
 | `clients` | short keys → `{name, email, template}` |
 

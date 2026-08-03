@@ -97,9 +97,12 @@ def cmd_setup(args) -> int:
     cfg["brand"] = brand
 
     allowed = [a for a in (cfg.get("allowed_recipients") or []) if clean(a)]
-    test_to = _ask("Email address to test with (only address allowed at first)",
-                   allowed[0] if allowed else cfg["from_email"])
-    cfg["allowed_recipients"] = [test_to]
+    test_to = _ask("Email address to test with", allowed[0] if allowed else cfg["from_email"])
+
+    # Default to unrestricted. You approve every send by hand anyway, so a
+    # standing allowlist mostly just blocks you halfway through a real email.
+    lock = input(f"  Only allow sending to {test_to} until you say otherwise? [y/N]: ")
+    cfg["allowed_recipients"] = [test_to] if lock.strip().lower().startswith("y") else []
     if cfg.get("clients", {}).get("acme"):
         cfg["clients"] = {}
 
@@ -114,6 +117,39 @@ def cmd_setup(args) -> int:
     else:
         print("\n  Fix the problems above, then run \033[1mclientmail setup\033[0m again.\n")
     return rc
+
+
+def cmd_allow(args) -> int:
+    """Change who may be mailed. The restriction is opt-in; most people should
+    run `clientmail allow any` once and never think about it again."""
+    cfg = store.load_config()
+    current = cfg.get("allowed_recipients") or []
+
+    if not args.addresses:
+        _print_header("who this can email")
+        if not current:
+            print("  anyone — no restriction (this is the normal setting)")
+        else:
+            for a in current:
+                print(f"  {a}")
+            print("\n  lift it with:  clientmail allow any")
+        return 0
+
+    if len(args.addresses) == 1 and args.addresses[0].lower() in ("any", "anyone", "all", "*"):
+        cfg["allowed_recipients"] = []
+        store.config_path().write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+        print("\n  Restriction lifted — clientmail can now email any address.")
+        print("  You still approve every send, so nothing goes out without you.\n")
+        return 0
+
+    added = [a for a in args.addresses if a not in current]
+    cfg["allowed_recipients"] = current + added
+    store.config_path().write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    _print_header("who this can email")
+    for a in cfg["allowed_recipients"]:
+        print(f"  {a}{'   (added)' if a in added else ''}")
+    print()
+    return 0
 
 
 def cmd_check(args) -> int:
@@ -339,6 +375,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("setup", help="fill in config.json by answering questions")
     p.set_defaults(func=cmd_setup)
+
+    p = sub.add_parser("allow", help="who may be emailed; 'any' lifts the restriction")
+    p.add_argument("addresses", nargs="*",
+                   help="'any' to allow everyone, or addresses to add. No args shows current.")
+    p.set_defaults(func=cmd_allow)
 
     p = sub.add_parser("check", help="validate config; --ping also tests the webhook")
     p.add_argument("--ping", action="store_true")

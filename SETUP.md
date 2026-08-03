@@ -175,7 +175,7 @@ open -e ~/.clientmail/config.json
   },
 
   "paused": false,
-  "allowed_recipients": ["your.own@email.com"],
+  "allowed_recipients": [],
   "clients": {}
 }
 ```
@@ -184,8 +184,15 @@ open -e ~/.clientmail/config.json
 or rejects a From header that isn't the authenticated account, so a mismatch here either
 silently changes the sender or fails the send.
 
-**Leave `allowed_recipients` on your own address for now.** Until you deliberately add a
-client, the tool cannot mail them. Set it to `[]` to allow anyone once you trust it.
+**`allowed_recipients` is empty by default, which means it can email anyone.** That is the
+normal setting — you approve every send by hand, so a standing list mostly just interrupts
+you halfway through a real email. If you do want a hard rail while testing:
+
+```bash
+clientmail allow you@yourdomain.com   # only this address
+clientmail allow any                  # lift it again
+clientmail allow                      # show the current setting
+```
 
 ---
 
@@ -251,6 +258,6 @@ Run `clientmail doctor` first — Python, git, install paths, skills, recent sen
 | "sent automatically with n8n" | Append Attribution still on in the Send Email node |
 | Attachments missing | Options → Attachments must be `{{ $json.attachmentFields }}` (in some n8n versions this option is called *Attachments (File)*) |
 | Raw HTML in the body | Email Format is `Text`, should be `Both` |
-| Recipient refused | `allowed_recipients` — add the address or `"@theirdomain.com"` |
+| Recipient refused | You set a restriction. Run `clientmail allow any` to lift it |
 | Sending refused entirely | `"paused": true`, or `from_email` is unset |
 | `/gmailsum` missing | Re-run the installer, then restart Claude Code |

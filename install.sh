@@ -170,6 +170,6 @@ if [ "${FRESH_CONFIG:-0}" = 1 ]; then
 fi
 printf '\n  3. Check it:            %sclientmail check --ping%s\n' "$bold" "$off"
 printf '  4. Mail yourself first: %sclientmail test-email you@example.com%s\n\n' "$bold" "$off"
-printf '%sNote:%s allowed_recipients starts locked to one address, so the first send to a\n' "$yellow" "$off"
-printf 'real client will be refused until you add them. That is deliberate.\n\n'
+printf '%sTip:%s  %sclientmail setup%s walks you through the settings, and\n' "$yellow" "$off" "$bold" "$off"
+printf '      %sclientmail allow any%s controls who may be emailed.\n\n' "$bold" "$off"
 printf 'Then in any repo, after doing some work:  %s/gmailsum%s\n\n' "$bold" "$off"

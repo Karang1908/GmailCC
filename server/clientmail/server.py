@@ -342,9 +342,9 @@ def tool_config_check(args: dict) -> dict:
         if "yoursite.com" in str(brand.get("site", "")):
             warnings.append("brand.site is still the example URL.")
         if "your.own@email.com" in (cfg.get("allowed_recipients") or []):
-            warnings.append(
-                "allowed_recipients still contains the example address 'your.own@email.com' "
-                "-- replace it with your own before testing.")
+            problems.append(
+                "allowed_recipients still contains the example address 'your.own@email.com', "
+                "which blocks every real send. Run: clientmail allow any")
         if "acme" in (cfg.get("clients") or {}):
             warnings.append(
                 "The example client 'acme' is still configured. Replace it with a real client.")
@@ -362,9 +362,9 @@ def tool_config_check(args: dict) -> dict:
             warnings.append("paused is true: email_send will refuse until you set it to false.")
         if not cfg.get("clients"):
             warnings.append("No clients configured; you can still pass full email addresses.")
-        if not cfg.get("allowed_recipients"):
-            warnings.append("allowed_recipients is empty, so any address may be mailed. "
-                            "While testing, set it to [\"your@email.com\"].")
+        # An empty allowed_recipients is the normal, intended setting -- every send is
+        # approved by hand, so a standing allowlist mostly just interrupts real work.
+        # It is offered for people who want a hard rail, not warned about.
 
     if not render.stock_template_names():
         problems.append(f"No templates found in {store.templates_dir()} -- re-run the installer.")
