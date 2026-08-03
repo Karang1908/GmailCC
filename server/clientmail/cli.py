@@ -51,6 +51,71 @@ def cmd_init(args) -> int:
     return 0
 
 
+def _ask(prompt: str, current: str = "", optional: bool = False) -> str:
+    """Prompt with the existing value as the default, so re-running is safe."""
+    shown = f" [{current}]" if current else (" (optional, press Enter to skip)" if optional else "")
+    while True:
+        answer = input(f"  {prompt}{shown}: ").strip()
+        if answer:
+            return answer
+        if current:
+            return current
+        if optional:
+            return ""
+        print("     ...that one is required.")
+
+
+def cmd_setup(args) -> int:
+    """Fill in config.json by asking, rather than making someone edit JSON."""
+    store.ensure_dirs()
+    try:
+        cfg = store.load_config()
+    except store.ConfigError:
+        example = PKG_ROOT / "config.example.json"
+        cfg = json.loads(example.read_text()) if example.exists() else dict(store.DEFAULT_CONFIG)
+
+    brand = cfg.get("brand") or {}
+    placeholder = {"Your Name", "Your Studio", "you@gmail.com", "— Your Name",
+                   "https://yoursite.com", "your.own@email.com"}
+    clean = lambda v: "" if str(v).strip() in placeholder else str(v)
+
+    print("\n\033[1mclientmail setup\033[0m  — press Enter to keep what's in brackets.\n")
+
+    url = cfg.get("webhook_url", "")
+    if not url or "YOURNAME" in url:
+        url = "http://localhost:5678/webhook/clientmail-send"
+    cfg["webhook_url"] = _ask("n8n webhook URL", url)
+    cfg["from_email"] = _ask("Gmail address you send FROM", clean(cfg.get("from_email")))
+    cfg["from_name"] = _ask("Name recipients should see", clean(cfg.get("from_name")))
+
+    brand["name"] = _ask("Company / studio name", clean(brand.get("name")), optional=True)
+    brand["signoff"] = _ask("Sign-off line", clean(brand.get("signoff"))
+                            or (f"— {cfg['from_name'].split()[0]}" if cfg["from_name"] else ""),
+                            optional=True)
+    brand["site"] = _ask("Website", clean(brand.get("site")), optional=True)
+    brand.setdefault("color", "#2563eb")
+    cfg["brand"] = brand
+
+    allowed = [a for a in (cfg.get("allowed_recipients") or []) if clean(a)]
+    test_to = _ask("Email address to test with (only address allowed at first)",
+                   allowed[0] if allowed else cfg["from_email"])
+    cfg["allowed_recipients"] = [test_to]
+    if cfg.get("clients", {}).get("acme"):
+        cfg["clients"] = {}
+
+    store.config_path().write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    print(f"\n  saved {store.config_path()}\n")
+
+    print("\033[1mchecking...\033[0m")
+    rc = cmd_check(argparse.Namespace(ping=True))
+    if rc == 0:
+        print(f"\n  All good. Now send yourself a real one:")
+        print(f"    \033[1mclientmail test-email {test_to}\033[0m\n")
+    else:
+        print("\n  Fix the problems above, then run \033[1mclientmail setup\033[0m again.\n")
+    return rc
+
+
 def cmd_check(args) -> int:
     result = tool_config_check({"ping": args.ping})
     _print_header("paths")
@@ -271,6 +336,9 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("init", help="create config.json and install templates")
     p.add_argument("--force", action="store_true")
     p.set_defaults(func=cmd_init)
+
+    p = sub.add_parser("setup", help="fill in config.json by answering questions")
+    p.set_defaults(func=cmd_setup)
 
     p = sub.add_parser("check", help="validate config; --ping also tests the webhook")
     p.add_argument("--ping", action="store_true")
