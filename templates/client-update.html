@@ -1,0 +1,54 @@
+<!-- desc: Professional progress update with a coloured accent bar and sign-off block. Default. -->
+<div style="margin:0;padding:0;background:#f3f4f6;">
+
+  <!-- Preview text shown next to the subject in the inbox list, then padded so the
+       client's mail app does not follow it with the first line of body copy. -->
+  <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">{{ preheader }}</div>
+  <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;</div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+         style="background:#f3f4f6;padding:24px 12px;">
+    <tr>
+      <td align="center">
+
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"
+               style="max-width:600px;width:100%;background:#ffffff;border-radius:10px;
+                      border:1px solid #e5e7eb;overflow:hidden;">
+
+          <tr>
+            <td style="height:4px;background:{{ brand_color }};font-size:0;line-height:0;">&nbsp;</td>
+          </tr>
+
+          <tr>
+            <td style="padding:28px 32px 8px 32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+              <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;font-weight:600;">
+                {{ brand_name }}
+              </div>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:4px 32px 28px 32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+              {{ body_html }}
+
+              <p style="margin:24px 0 0 0;font-size:15px;line-height:1.6;color:#1f2937;">
+                {{ brand_signoff }}
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:16px 32px 22px 32px;border-top:1px solid #f3f4f6;
+                       font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+              <p style="margin:0;font-size:12px;line-height:1.5;color:#9ca3af;">
+                {{ brand_name }} &middot; {{ year }}<br>
+                <a href="{{ brand_site }}" style="color:#9ca3af;text-decoration:underline;">{{ brand_site }}</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</div>

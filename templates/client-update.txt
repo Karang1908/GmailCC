@@ -1,0 +1,7 @@
+{{ body_text }}
+
+{{ brand_signoff }}
+
+--
+{{ brand_name }}
+{{ brand_site }}

@@ -1,0 +1,26 @@
+{
+  "webhook_url": "https://YOURNAME.app.n8n.cloud/webhook/clientmail-send",
+  "webhook_secret": "paste-the-same-secret-you-put-in-the-n8n-Validate-node",
+
+  "from_name": "Your Name",
+  "reply_to": "",
+  "default_template": "client-update",
+
+  "brand": {
+    "name": "Your Studio",
+    "color": "#2563eb",
+    "signoff": "— Your Name",
+    "site": "https://yoursite.com"
+  },
+
+  "paused": false,
+  "allowed_recipients": ["your.own@email.com"],
+
+  "clients": {
+    "acme": {
+      "name": "Jane",
+      "email": "jane@acme.com",
+      "template": "client-update"
+    }
+  }
+}

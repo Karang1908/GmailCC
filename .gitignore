@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.DS_Store
+
+# Never commit a real config -- it holds the webhook secret.
+config.json
+
+# Local scratch
+preview.html
+/drafts/

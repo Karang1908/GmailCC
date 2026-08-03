@@ -1,0 +1,4 @@
+# Windows batch files break if checked out with LF endings.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.sh  text eol=lf
