@@ -333,6 +333,8 @@ def tool_config_check(args: dict) -> dict:
                 "string in n8n's Validate node.")
         if str(cfg.get("from_name", "")).strip() == "Your Name":
             warnings.append("from_name is still 'Your Name' -- the client will see that.")
+        if str(cfg.get("from_email", "")).strip() == "you@gmail.com":
+            problems.append("from_email is still the example address.")
         if str(brand.get("name", "")).strip() == "Your Studio":
             warnings.append("brand.name is still 'Your Studio'.")
         if str(brand.get("signoff", "")).strip() == "— Your Name":
@@ -346,8 +348,14 @@ def tool_config_check(args: dict) -> dict:
         if "acme" in (cfg.get("clients") or {}):
             warnings.append(
                 "The example client 'acme' is still configured. Replace it with a real client.")
+        if not cfg.get("from_email"):
+            problems.append(
+                "from_email is empty. SMTP needs a real sender address, and it must be the "
+                "Gmail account the app password belongs to.")
+        elif "@" not in str(cfg.get("from_email")):
+            problems.append(f"from_email {cfg['from_email']!r} is not an email address.")
         if not cfg.get("from_name"):
-            warnings.append("from_name is empty -- the client will see the raw Gmail account name.")
+            warnings.append("from_name is empty -- recipients will just see the address.")
         if not (cfg.get("brand") or {}).get("signoff"):
             warnings.append("brand.signoff is empty -- emails will end without a sign-off line.")
         if cfg.get("paused"):

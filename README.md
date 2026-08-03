@@ -81,13 +81,12 @@ Three layers, each doing the one thing it's good at:
                          │  HTTPS POST (JSON + shared secret)
                          ▼
                  ┌─ n8n workflow ──────────┐     delivery
-                 │  Webhook → Validate      │    holds the Gmail
-                 │    → probe? → respond    │    credential so you
-                 │    → attachments? ──┐    │    never do OAuth
-                 │        Gmail send ◄──┘   │
-                 └──────────┬──────────────┘
+                 │  Webhook → Validate      │    holds the mail
+                 │    → probe? → respond    │    credential so it
+                 │    → Send Email          │    never touches the
+                 └──────────┬──────────────┘     tool or your repo
                             ▼
-                          Gmail
+                    Gmail over SMTP
 ```
 
 **Why the split matters.** A skill is a prompt — it can be reasoned with, and under enough
@@ -255,6 +254,7 @@ and send yourself a test: a render is not proof it survives a real mail client.
 |---|---|
 | `webhook_url` | n8n **Production** webhook URL (not the Test URL) |
 | `webhook_secret` | must equal `SECRET` in n8n's Validate node |
+| `from_email` | sender address — **must** be the Gmail account the app password belongs to |
 | `from_name` | display name the recipient sees |
 | `reply_to` | optional reply-to address |
 | `default_template` | used when a draft doesn't name one |
@@ -333,8 +333,12 @@ Start with `clientmail doctor`.
   describe it.
 - **No inline images**, for the reason described above — attachments only.
 - **One work session per repo** for `/client-work`; starting a new one replaces the baseline.
-- **n8n is required.** On n8n Cloud there's no Google Cloud project; self-hosted n8n will
-  ask for your own Google OAuth credentials.
+- **n8n is required**, and if you self-host it with `npx n8n` it stops when you close the
+  terminal. Run it as a service for anything beyond testing.
+- **Gmail is reached over SMTP with an app password**, which requires 2-Step Verification on
+  the account and can be disabled by a Workspace admin. The alternative — n8n's Gmail node
+  via Google OAuth — needs your own Google Cloud project on self-hosted n8n, and Google
+  expires the connection every 7 days until the app passes review.
 
 ## Development
 

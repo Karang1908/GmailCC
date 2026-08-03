@@ -16,6 +16,7 @@ from pathlib import Path
 DEFAULT_CONFIG = {
     "webhook_url": "",
     "webhook_secret": "",
+    "from_email": "",
     "from_name": "",
     "reply_to": "",
     "default_template": "client-update",

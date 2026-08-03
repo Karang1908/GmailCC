@@ -50,7 +50,7 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, {"ok": True, "probe": True})
             return
 
-        missing = [f for f in ("to", "subject", "html") if not data.get(f)]
+        missing = [f for f in ("from", "to", "subject", "html") if not data.get(f)]
         if missing:
             self._json(400, {"ok": False, "error": f"missing: {', '.join(missing)}"})
             return
@@ -77,12 +77,14 @@ class Handler(BaseHTTPRequestHandler):
             written.append(f"{dest.name} ({len(raw)} bytes, {att.get('mimeType')})")
 
         print(f"\n--- MOCK SEND ---------------------------------------")
+        print(f"  from:    {data['from']}")
         print(f"  to:      {data['to']}")
         print(f"  cc:      {data.get('cc') or '(none)'}")
         print(f"  bcc:     {data.get('bcc') or '(none)'}")
         print(f"  subject: {data['subject']}")
         print(f"  from:    {data.get('fromName') or '(gmail default)'}")
         print(f"  html:    {len(data['html'])} bytes -> {html_file}")
+        print(f"  text:    {len(data.get('text', ''))} bytes")
         for w in written:
             print(f"  attach:  {w}")
         print(f"-----------------------------------------------------\n")

@@ -65,19 +65,29 @@ Format quirks that are load-bearing in `session.py` — all verified against rea
 
 ## n8n specifics
 
-Verified against the n8n source (`Gmail/GenericFunctions.ts`, `v2/MessageDescription.ts`):
+The workflow uses **`n8n-nodes-base.emailSend` (SMTP)**, not the Gmail node. That is a
+deliberate choice for self-hosted n8n, verified against Google's docs: the Gmail node needs
+Google OAuth, which on self-hosted means your own Google Cloud project, and because Gmail
+scopes are "sensitive" an app in Testing status gets refresh tokens that **expire after 7
+days**. An app password over SMTP has none of that.
 
-- Attachment option is `options.attachmentsUi.attachmentsBinary[].property`, and `property`
-  accepts a **comma-separated** list of binary field names.
-- `prepareEmailAttachments` calls `assertBinaryData(itemIndex, name)`, which **throws** on
-  an empty or missing name — so a single Gmail node with the attachments option always set
-  fails on every email without attachments. Hence the `Has attachments?` branch and two
-  Gmail nodes. Do not collapse them back into one.
-- An empty `attachmentsBinary` **array** is skipped safely, but the array length can't be
-  driven by an expression, which is why branching is the only option.
-- Option keys: `ccList`, `bccList`, `senderName`, `replyTo`, `appendAttribution`.
+Verified against `EmailSend/v2/send.operation.ts`:
+
+- Top-level params: `fromEmail`, `toEmail`, `subject`, `emailFormat` (`text`/`html`/`both`),
+  `text`, `html`.
+- Inside `options`: `ccEmail`, `bccEmail`, `replyTo`, `attachments` (inline, `cid:` refs),
+  `fileAttachments` (regular attachments), `appendAttribution`, `allowUnauthorizedCerts`.
+- Both attachment fields are plain **comma-separated strings** of binary property names,
+  and execute() guards with `if (options.fileAttachments)` before splitting — so an empty
+  string is safe. This is why one send node covers mail with and without attachments.
+  (The Gmail node is the opposite: `assertBinaryData` **throws** on an empty name, which
+  forced a two-node branch when we used it. Don't reintroduce that pattern here.)
 - `appendAttribution: false` matters — otherwise every client email ends with "This email
   was sent automatically with n8n".
+- Credential type is `smtp`. For Gmail: `smtp.gmail.com`, port 465, SSL on, user = the
+  address, password = the 16-char app password.
+- `from_email` in config **must** equal the authenticated account; Gmail rewrites or
+  rejects a mismatched From.
 
 ## Testing
 

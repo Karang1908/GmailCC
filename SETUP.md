@@ -1,13 +1,15 @@
 # Setup
 
-Start to finish, about 10 minutes. Five steps, and only step 3 needs any real attention.
+Start to finish, about 15 minutes.
 
 - [1. Install](#1-install)
 - [2. Get an n8n](#2-get-an-n8n)
-- [3. Import the workflow](#3-import-the-workflow)
-- [4. Connect the two ends](#4-connect-the-two-ends)
-- [5. Prove it works](#5-prove-it-works)
+- [3. Get a Gmail app password](#3-get-a-gmail-app-password)
+- [4. Import the workflow](#4-import-the-workflow)
+- [5. Fill in the config](#5-fill-in-the-config)
+- [6. Prove it works](#6-prove-it-works)
 - [If the import came out wrong](#if-the-import-came-out-wrong)
+- [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -22,128 +24,142 @@ curl -fsSL https://raw.githubusercontent.com/Karang1908/GmailCC/main/install.sh 
 **Windows** — download the repo (green *Code* button → *Download ZIP*), unzip, double-click
 `install.bat`.
 
-You need **Python 3.9 or newer**. Nothing else — no `pip install`, no Node, no build step.
+You need **Python 3.9 or newer**. Nothing else — no `pip install`, no build step. (Verified
+working on stock macOS Python 3.9.6 and on bash 3.2, so a Mac with no Homebrew is fine.)
 
-- macOS: `brew install python` if the installer says it can't find one
-- Windows: python.org/downloads, and **tick "Add python.exe to PATH"** during install
-
-The installer prints where everything went and generates a random `webhook_secret` for you.
-Keep that terminal open — you need the secret in step 4.
+The installer prints where everything went and generates a random `webhook_secret`. Keep
+that terminal open — you need the secret in step 4.
 
 > Re-running the installer is safe. It updates the code and leaves your `config.json`,
 > your drafts, and any template you've edited untouched.
 
-### If `clientmail` isn't found afterwards
-
-The installer warns you when `~/.local/bin` isn't on your PATH. Fix it:
+If `clientmail` isn't found afterwards:
 
 ```bash
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc
 ```
 
-On Windows the shim is at `%USERPROFILE%\.clientmail\clientmail.cmd`.
-
 ---
 
 ## 2. Get an n8n
 
-n8n is the piece that actually talks to Gmail. It exists in this design for exactly one
-reason: **it owns the Google login so you don't have to build one.**
+n8n is the piece that actually sends the mail.
 
-**n8n Cloud — recommended.** Sign up at [n8n.io](https://n8n.io). The free trial is enough
-to set this up and test it. Its Gmail node uses n8n's own Google OAuth app, so connecting
-your account is a "Sign in with Google" button. **No Google Cloud project, no OAuth consent
-screen, no verification.**
-
-**Self-hosted — free forever, more work:**
+**Local (free, runs on your machine):**
 
 ```bash
-docker run -it --rm -p 5678:5678 -v n8n_data:/home/node/.n8n docker.n8n.io/n8nio/n8n
+npx n8n
 ```
 
-Then open http://localhost:5678. Be aware: self-hosted n8n has no n8n-owned Google app
-behind it, so its Gmail node **will** ask you to create a Google Cloud project and supply
-your own OAuth client ID and secret. If avoiding that was the point, use n8n Cloud.
+Then open http://localhost:5678 and create the local owner account.
 
-> Self-hosting on localhost also means the webhook URL is `http://localhost:5678/...`,
-> which only works while n8n is running on the same machine as Claude Code.
+> ⚠️ `npx n8n` stops the moment you close that terminal window or reboot, and sending
+> stops with it. For anything beyond testing, run it as a background service (`pm2`, a
+> `launchd` plist on macOS, or Docker with `--restart unless-stopped`).
+
+**n8n Cloud** works too — sign up at [n8n.io](https://n8n.io) and skip nothing else; the
+rest of this guide is identical.
 
 ---
 
-## 3. Import the workflow
+## 3. Get a Gmail app password
 
-In n8n: **Workflows → ⋯ menu → Import from File** → choose
+This is how n8n logs into Gmail. It takes about three minutes and needs no Google Cloud
+project.
+
+1. Go to **myaccount.google.com → Security**.
+2. Turn on **2-Step Verification** if it isn't already. App passwords don't exist without it.
+3. Search that page for **App passwords** (or go to
+   [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)).
+4. Name it anything — *clientmail* — and click **Create**.
+5. Copy the **16-character code**. Spaces don't matter.
+
+> **Why not the "Sign in with Google" button in n8n?** On self-hosted n8n that route
+> requires you to create your own Google Cloud project, enable the Gmail API and configure
+> a consent screen — and because Gmail's scopes count as sensitive, Google expires the
+> connection **every 7 days** until the app passes review. An app password avoids all of it.
+
+> **Can't find App passwords?** Some Google Workspace administrators disable them. If your
+> account is a Workspace one and the option is missing, ask the admin to allow app
+> passwords, or use n8n Cloud with the Gmail node instead.
+
+---
+
+## 4. Import the workflow
+
+In n8n: **Workflows → ⋯ → Import from File** → choose
 `~/.clientmail/app/n8n/clientmail-send.workflow.json`.
 
-You should see eight nodes:
+In the macOS file picker, press `Cmd+Shift+G` and paste that path if you can't see dotted
+folders.
+
+Five nodes:
 
 ```
 Webhook → Validate → Is probe? ─┬─ true ──→ Respond Probe
-                                │
-                                └─ false ─→ Has attachments? ─┬─ true ─→ Send with attachments ─┐
-                                                              │                                  ├→ Respond Sent
-                                                              └─ false → Send plain ─────────────┘
+                                └─ false ─→ Send Email → Respond Sent
 ```
 
-**Why two Gmail nodes?** The Gmail node throws if its attachment field is empty, so an email
-with no attachments would fail on a single node that always had attachments configured. The
-branch keeps both cases working. You'll connect the same Gmail account to both.
+### 4a. Set your secret
 
-### 3a. Set your secret
-
-Open the **Validate** node. Near the top:
+Open the **Validate** node and replace the placeholder, keeping the quotes:
 
 ```js
 const SECRET = 'REPLACE_WITH_YOUR_SECRET';
 ```
 
-Replace it with the secret the installer generated. If you missed it:
+Lost it? Print it back:
 
 ```bash
 python3 -c "import json,pathlib; print(json.loads((pathlib.Path.home()/'.clientmail/config.json').read_text())['webhook_secret'])"
 ```
 
-Without a matching secret, anyone who discovers your webhook URL can send email from your
-Gmail account.
+### 4b. Set up the SMTP credential
 
-### 3b. Connect Gmail — in **both** Gmail nodes
+Open the **Send Email** node → *Credential to connect with* → **Create new**, and fill in:
 
-Open **Send with attachments** → *Credential to connect with* → **Create new** → sign in
-with the Google account you want to send from → allow.
+| Field | Value |
+|---|---|
+| User | your full Gmail address |
+| Password | the 16-character app password from step 3 |
+| Host | `smtp.gmail.com` |
+| Port | `465` |
+| SSL/TLS | **on** |
 
-Then open **Send plain** and pick that **same credential** from the dropdown. You only
-create it once.
+Save. Check **Options → Append n8n Attribution is OFF** — otherwise every email ends with
+"This email was sent automatically with n8n".
 
-In both nodes, check **Options → Append n8n Attribution is OFF**. Otherwise every email ends
-with "This email was sent automatically with n8n", which is not what you want on a client
-update. The imported workflow sets it off — confirm it survived the import.
+### 4c. Activate
 
-### 3c. Activate
+Toggle the workflow **Active**, top right. Nothing works until you do.
 
-Toggle the workflow **Active** (top right). Nothing works until you do.
+### 4d. Copy the Production URL
+
+Open the **Webhook** node and copy the **Production URL**. Running locally it looks like:
+
+```
+http://localhost:5678/webhook/clientmail-send
+```
+
+> ⚠️ **Production, not Test.** The Test URL only fires once, after you click "Listen for
+> test event". Using it is the most common reason sending fails with a 404.
 
 ---
 
-## 4. Connect the two ends
+## 5. Fill in the config
 
-Open the **Webhook** node and copy the **Production URL**:
-
+```bash
+open -e ~/.clientmail/config.json
 ```
-https://yourname.app.n8n.cloud/webhook/clientmail-send
-```
-
-> ⚠️ **Production URL, not Test URL.** The Test URL only fires once, after you click
-> "Listen for test event". Using it is the single most common reason sending fails with a
-> 404.
-
-Now edit `~/.clientmail/config.json`:
 
 ```json
 {
-  "webhook_url": "https://yourname.app.n8n.cloud/webhook/clientmail-send",
+  "webhook_url": "http://localhost:5678/webhook/clientmail-send",
   "webhook_secret": "the-same-secret-you-put-in-the-Validate-node",
 
+  "from_email": "you@gmail.com",
   "from_name": "Your Name",
+
   "brand": {
     "name": "Your Studio",
     "color": "#2563eb",
@@ -157,48 +173,45 @@ Now edit `~/.clientmail/config.json`:
 }
 ```
 
-**Leave `allowed_recipients` restricted to your own address for now.** It's a safety rail:
-until you deliberately add a client, the tool physically cannot mail them. Set it to `[]`
-to allow anyone once you're confident.
+**`from_email` must be the same Gmail account the app password belongs to.** Gmail rewrites
+or rejects a From header that isn't the authenticated account, so a mismatch here either
+silently changes the sender or fails the send.
+
+**Leave `allowed_recipients` on your own address for now.** Until you deliberately add a
+client, the tool cannot mail them. Set it to `[]` to allow anyone once you trust it.
 
 ---
 
-## 5. Prove it works
+## 6. Prove it works
 
 ```bash
 clientmail check --ping
 ```
 
-Expect `reachable  HTTP 200`. This proves the URL is right, the workflow is active, and
-your secret matches. It does **not** send anything.
-
-Then send yourself a real one:
+Expect `reachable  HTTP 200`. That proves the URL is right, the workflow is active, and the
+secret matches. It sends no email.
 
 ```bash
 clientmail test-email you@yourdomain.com
 ```
 
-Open it **on your phone as well as your laptop**. You're checking that:
+Open it **on your phone as well as your laptop** and check: not in spam, sender name right,
+bold/bullets/link all render, no n8n attribution line.
 
-- it isn't in spam
-- the sender name is right
-- bold, bullets and the link all render
-- there's no n8n attribution line at the bottom
-
-Then try the real thing — do some work in any repo and type:
+Then do some work in any repo and type:
 
 ```
 /gmailsum
 ```
 
-If `/gmailsum` isn't offered, restart Claude Code (skills are read at startup).
+If `/gmailsum` isn't offered, restart Claude Code — skills load at startup.
 
 ---
 
 ## If the import came out wrong
 
-Node parameter formats change between n8n versions. If a node imports with empty or odd
-settings, build these eight by hand:
+Node formats change between n8n versions. If something imports empty, build these five by
+hand:
 
 | Node | Type | Settings |
 |---|---|---|
@@ -206,34 +219,32 @@ settings, build these eight by hand:
 | Validate | Code | Paste the JS from the `Validate` node in the JSON file |
 | Is probe? | If | `{{ $json.probe }}` → Boolean → is true |
 | Respond Probe | Respond to Webhook | Respond With `JSON`, body `{{ JSON.stringify({ ok: true, probe: true }) }}` |
-| Has attachments? | If | `{{ $json.hasAttachments }}` → Boolean → is true |
-| Send with attachments | Gmail | see below, **plus** Options → Attachments → Attachment Field Name `{{ $json.attachmentFields }}` |
-| Send plain | Gmail | see below, no Attachments option |
-| Respond Sent | Respond to Webhook | Respond With `JSON`, body `{{ JSON.stringify({ ok: true, messageId: $json.id \|\| '' }) }}` |
+| Send Email | Send Email | see below |
+| Respond Sent | Respond to Webhook | Respond With `JSON`, body `{{ JSON.stringify({ ok: true, accepted: true }) }}` |
 
-Both Gmail nodes: Resource `Message`, Operation `Send`, To `{{ $json.to }}`, Subject
-`{{ $json.subject }}`, Email Type `HTML`, Message `{{ $json.html }}`; Options → CC
-`{{ $json.cc }}`, BCC `{{ $json.bcc }}`, Send Replies To `{{ $json.replyTo }}`, Sender Name
-`{{ $json.fromName }}`, **Append n8n Attribution off**.
+**Send Email**: From `{{ $json.from }}`, To `{{ $json.to }}`, Subject `{{ $json.subject }}`,
+Email Format `Both`, Text `{{ $json.text }}`, HTML `{{ $json.html }}`; Options → CC
+`{{ $json.cc }}`, BCC `{{ $json.bcc }}`, Reply To `{{ $json.replyTo }}`, Attachments (File)
+`{{ $json.attachmentFields }}`, **Append Attribution off**.
 
-Wiring: `Is probe?` true → Respond Probe, false → `Has attachments?`. `Has attachments?`
-true → Send with attachments, false → Send plain. Both Gmail nodes → Respond Sent.
+Wiring: `Is probe?` true → Respond Probe, false → Send Email → Respond Sent.
 
 ---
 
 ## Troubleshooting
 
-Run `clientmail doctor` first — it reports your Python, git, install paths, whether the
-skills are in place, and your recent sends.
+Run `clientmail doctor` first — Python, git, install paths, skills, recent sends.
 
 | Symptom | Cause |
 |---|---|
-| `404` from n8n | Workflow not Active, or you used the Test URL |
+| `404` from n8n | Workflow not Active, you used the Test URL, or n8n isn't running |
+| Connection refused | `npx n8n` was stopped — that terminal window closed or the machine rebooted |
 | `401` / "secret does not match" | `webhook_secret` ≠ `SECRET` in the Validate node |
-| "Attachment not found" | Attachment Field Name must be `{{ $json.attachmentFields }}` |
-| Send succeeds, no email | Gmail credential is on the wrong Google account — check n8n's Executions tab |
-| "sent automatically with n8n" | Append Attribution still on in one of the Gmail nodes |
-| Raw HTML in the email body | Email Type is `Text`, should be `HTML` |
+| `Invalid login` / `535` | Wrong app password, or you used your normal Google password |
+| Email arrives from the wrong address | `from_email` isn't the account the app password belongs to |
+| "sent automatically with n8n" | Append Attribution still on in the Send Email node |
+| Attachments missing | Options → Attachments (File) must be `{{ $json.attachmentFields }}` — the *File* one, not Inline |
+| Raw HTML in the body | Email Format is `Text`, should be `Both` |
 | Recipient refused | `allowed_recipients` — add the address or `"@theirdomain.com"` |
-| Sending refused entirely | `"paused": true` in config.json |
+| Sending refused entirely | `"paused": true`, or `from_email` is unset |
 | `/gmailsum` missing | Re-run the installer, then restart Claude Code |

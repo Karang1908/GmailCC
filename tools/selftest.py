@@ -186,6 +186,7 @@ def main() -> int:
     (home / "config.json").write_text(json.dumps({
         "webhook_url": f"http://127.0.0.1:{port}/webhook/clientmail-send",
         "webhook_secret": secret,
+        "from_email": "karan@example.com",
         "from_name": "Karan Garg",
         "brand": {"name": "Studio", "color": "#2563eb", "signoff": "— Karan",
                   "site": "https://example.com"},
@@ -286,6 +287,8 @@ def main() -> int:
                                      "dry_run": True})
     check(not err and dry["sent"] is False,
           "recipient confirmation is order-independent", json.dumps(dry)[:200])
+    check(dry["payload_preview"].get("from") == "Karan Garg <karan@example.com>",
+          f"From header built as name + address: {dry['payload_preview'].get('from')!r}")
 
     for label, kw in [
         ("malformed address", {"to": "not-an-email"}),
@@ -341,6 +344,11 @@ def main() -> int:
     _, e = s.tool("email_send", {"draft_path": str(draft), "confirm_hash": att_hash,
                                  "confirm_recipient": "jane@acme.com"})
     check(e, "paused: true blocks sending")
+
+    cfg_file.write_text(original.replace('"from_email": "karan@example.com",', ''))
+    _, e = s.tool("email_send", {"draft_path": str(draft), "confirm_hash": att_hash,
+                                 "confirm_recipient": "jane@acme.com"})
+    check(e, "missing from_email blocks sending (SMTP needs a real sender)")
     cfg_file.write_text(original)
 
     print("\n== real send with attachments (to the mock) ==")

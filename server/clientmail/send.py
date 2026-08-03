@@ -56,10 +56,23 @@ def check_recipients(meta: dict, cfg: dict) -> None:
         )
 
 
+def sender(meta: dict, cfg: dict) -> str:
+    """The From header. SMTP needs a real address, unlike the Gmail node which
+    took it from the credential. Gmail rewrites a From that isn't the
+    authenticated account, so from_email must match the account the app password
+    belongs to."""
+    address = cfg.get("from_email") or ""
+    name = meta.get("from_name") or cfg.get("from_name") or ""
+    if address and name:
+        return f"{name} <{address}>"
+    return address
+
+
 def build_payload(parsed: dict, rendered: dict, cfg: dict,
                   attachments: list[dict] | None = None) -> dict:
     meta = parsed["meta"]
     return {
+        "from": sender(meta, cfg),
         "to": ", ".join(meta.get("to", [])),
         "cc": ", ".join(meta.get("cc", [])),
         "bcc": ", ".join(meta.get("bcc", [])),
@@ -76,6 +89,12 @@ def build_payload(parsed: dict, rendered: dict, cfg: dict,
 
 
 def preflight(cfg: dict) -> None:
+    if not cfg.get("from_email"):
+        raise SendBlocked(
+            "No from_email in config.json. SMTP needs a real sender address, and it must "
+            "be the same Gmail account the app password was generated for -- Gmail rewrites "
+            "or rejects a From header that isn't the authenticated account."
+        )
     if cfg.get("paused"):
         raise SendBlocked(
             "Sending is paused ('paused': true in config.json). "
