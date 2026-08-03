@@ -93,7 +93,7 @@ In n8n: **Workflows → ⋯ → Import from File** → choose
 In the macOS file picker, press `Cmd+Shift+G` and paste that path if you can't see dotted
 folders.
 
-Five nodes:
+Six nodes:
 
 ```
 Webhook → Validate → Is probe? ─┬─ true ──→ Respond Probe
@@ -210,7 +210,7 @@ If `/gmailsum` isn't offered, restart Claude Code — skills load at startup.
 
 ## If the import came out wrong
 
-Node formats change between n8n versions. If something imports empty, build these five by
+Node formats change between n8n versions. If something imports empty, build these six by
 hand:
 
 | Node | Type | Settings |

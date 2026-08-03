@@ -74,7 +74,9 @@ fi
 step "Installing to $HOME_DIR"
 mkdir -p "$APP_DIR" "$HOME_DIR/templates" "$HOME_DIR/drafts" "$HOME_DIR/sessions" "$BIN_DIR"
 
-rm -rf "$APP_DIR/server"
+# Remove first: `cp -R src dest` copies *into* dest when dest already exists,
+# so a re-install would nest app/n8n/n8n and silently keep serving stale files.
+rm -rf "$APP_DIR/server" "$APP_DIR/n8n" "$APP_DIR/tools" "$APP_DIR/templates_stock"
 cp -R "$SRC/server" "$APP_DIR/server"
 cp -R "$SRC/n8n" "$APP_DIR/n8n" 2>/dev/null || true
 cp -R "$SRC/tools" "$APP_DIR/tools" 2>/dev/null || true
