@@ -315,7 +315,7 @@ one. The same address in both To and CC is rejected — the person would get two
 
 | Symptom | Cause |
 |---|---|
-| `404` from n8n | Workflow not Active, or you used the Test URL instead of the Production URL |
+| `404` from n8n | Workflow not published (**Publish** in n8n 2.x, **Active** toggle in 1.x), or you used the Test URL instead of the Production URL |
 | `401` / "secret does not match" | `webhook_secret` ≠ the `SECRET` in the Validate node |
 | Send succeeds, no email arrives | Gmail credential connected to the wrong Google account — check n8n's Executions tab |
 | "sent automatically with n8n" at the bottom | Append Attribution is still on in a Gmail node |

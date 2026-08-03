@@ -129,9 +129,16 @@ Open the **Send Email** node → *Credential to connect with* → **Create new**
 Save. Check **Options → Append n8n Attribution is OFF** — otherwise every email ends with
 "This email was sent automatically with n8n".
 
-### 4c. Activate
+### 4c. Publish it
 
-Toggle the workflow **Active**, top right. Nothing works until you do.
+Top right of the editor:
+
+- **n8n 2.x** — click **Publish**
+- **n8n 1.x** — flip the **Active** toggle
+
+Same thing under two names; the button was renamed in n8n 2.0. Nothing works until you
+do it — an unpublished workflow returns `404 ... webhook is not registered` and n8n's own
+error text tells you so.
 
 ### 4d. Copy the Production URL
 
@@ -237,7 +244,7 @@ Run `clientmail doctor` first — Python, git, install paths, skills, recent sen
 
 | Symptom | Cause |
 |---|---|
-| `404` from n8n | Workflow not Active, you used the Test URL, or n8n isn't running |
+| `404` "webhook is not registered" | Workflow not published (**Publish** button in n8n 2.x, **Active** toggle in 1.x), you used the Test URL, or n8n isn't running |
 | Connection refused | `npx n8n` was stopped — that terminal window closed or the machine rebooted |
 | `401` / "secret does not match" | `webhook_secret` ≠ `SECRET` in the Validate node |
 | `Invalid login` / `535` | Wrong app password, or you used your normal Google password |
