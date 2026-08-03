@@ -44,7 +44,13 @@ command -v claude >/dev/null 2>&1 || { HAVE_CLAUDE=0; warn "claude CLI not found
 [ "$HAVE_CLAUDE" = 1 ] && ok "claude CLI found"
 
 # --- 2. get the source ----------------------------------------------------
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# When piped (curl | bash) there is no BASH_SOURCE, and `set -u` makes reading it
+# fatal -- so fall back to the working directory and let the check below decide.
+if [ -n "${BASH_SOURCE[0]:-}" ]; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)" || SCRIPT_DIR="$PWD"
+else
+  SCRIPT_DIR="$PWD"
+fi
 
 if [ -d "$SCRIPT_DIR/server/clientmail" ]; then
   step "Installing from local checkout"

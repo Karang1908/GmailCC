@@ -252,6 +252,33 @@ def tool_config_check(args: dict) -> dict:
             problems.append("webhook_url is empty -- nothing can be sent until it is set.")
         if not cfg.get("webhook_secret"):
             warnings.append("webhook_secret is empty: anyone who learns your webhook URL could send mail as you.")
+
+        # A fresh install copies config.example.json, whose values are all non-empty.
+        # Without this, first run reports "config is usable" when nothing is set up yet.
+        brand = cfg.get("brand") or {}
+        if "YOURNAME.app.n8n.cloud" in str(cfg.get("webhook_url", "")):
+            problems.append(
+                "webhook_url is still the example value. Paste your n8n Production webhook "
+                "URL -- see n8n/SETUP.md.")
+        if "paste-the-same-secret" in str(cfg.get("webhook_secret", "")):
+            problems.append(
+                "webhook_secret is still the example value. Generate one and put the same "
+                "string in n8n's Validate node.")
+        if str(cfg.get("from_name", "")).strip() == "Your Name":
+            warnings.append("from_name is still 'Your Name' -- the client will see that.")
+        if str(brand.get("name", "")).strip() == "Your Studio":
+            warnings.append("brand.name is still 'Your Studio'.")
+        if str(brand.get("signoff", "")).strip() == "— Your Name":
+            warnings.append("brand.signoff is still the example sign-off.")
+        if "yoursite.com" in str(brand.get("site", "")):
+            warnings.append("brand.site is still the example URL.")
+        if "your.own@email.com" in (cfg.get("allowed_recipients") or []):
+            warnings.append(
+                "allowed_recipients still contains the example address 'your.own@email.com' "
+                "-- replace it with your own before testing.")
+        if "acme" in (cfg.get("clients") or {}):
+            warnings.append(
+                "The example client 'acme' is still configured. Replace it with a real client.")
         if not cfg.get("from_name"):
             warnings.append("from_name is empty -- the client will see the raw Gmail account name.")
         if not (cfg.get("brand") or {}).get("signoff"):
