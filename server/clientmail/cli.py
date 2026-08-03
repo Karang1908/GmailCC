@@ -14,7 +14,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import drafts, render, send, store
+from . import attachments, drafts, render, send, session, store
 from .server import tool_config_check
 
 PKG_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -96,15 +96,51 @@ def cmd_templates(args) -> int:
     return 0
 
 
+def cmd_session(args) -> int:
+    """Exactly what /gmailsum sees. Use this when a summary comes out wrong --
+    it shows whether the evidence was bad or the writing was."""
+    d = session.digest(args.cwd, session_id=args.session_id)
+    _print_header("session")
+    print(f"  id        {d['session_id']}")
+    print(f"  transcript{'':1}{d['transcript']}")
+    print(f"  cwd       {d['cwd']}  (branch {d['branch']})")
+    print(f"  span      {d['duration_minutes']} min, {d['record_count']} records")
+
+    _print_header(f"what the user asked ({len(d['user_prompts'])} prompts)")
+    for p in d["user_prompts"]:
+        first = p["text"].strip().split("\n")[0]
+        print(f"  - {first[:100]}{'...' if len(first) > 100 else ''}")
+    if d["user_prompts_dropped"]:
+        print(f"  ({d['user_prompts_dropped']} older prompts dropped for length)")
+
+    _print_header("files")
+    print(f"  created   {d['files_created_count']}")
+    for f in d["files_created"][:12]:
+        print(f"            {f}")
+    print(f"  edited    {d['files_edited_count']}")
+    for f in d["files_edited"][:12]:
+        print(f"            {f}")
+
+    _print_header("activity")
+    print(f"  commands  {d['commands_count']}")
+    print(f"  errors    {d['errors_count']}")
+    for e in d["errors"][:5]:
+        print(f"            {e['tool']}: {e['excerpt'][:80]}")
+    print(f"  tools     {', '.join(f'{k}x{v}' for k, v in d['tool_counts'].items())}")
+    return 0
+
+
 def cmd_render(args) -> int:
     cfg = store.load_config()
     parsed = drafts.read(args.draft)
     rendered = render.render_draft(parsed, cfg)
 
     _print_header("headers")
-    print(f"  to       {parsed['meta']['to']}")
+    print(f"  to       {', '.join(parsed['meta']['to']) or '(not set yet)'}")
     if parsed["meta"].get("cc"):
         print(f"  cc       {', '.join(parsed['meta']['cc'])}")
+    if parsed["meta"].get("bcc"):
+        print(f"  bcc      {', '.join(parsed['meta']['bcc'])}")
     print(f"  subject  {parsed['meta']['subject']}")
     print(f"  template {rendered['template']}")
     print(f"  hash     {parsed['hash']}")
@@ -121,21 +157,31 @@ def cmd_render(args) -> int:
 def cmd_send(args) -> int:
     cfg = store.load_config()
     parsed = drafts.read(args.draft)
+    drafts.require_recipients(parsed["meta"])
     rendered = render.render_draft(parsed, cfg)
     send.preflight(cfg)
     send.check_recipients(parsed["meta"], cfg)
+    files = attachments.collect(
+        parsed["meta"].get("attachments", []), draft_dir=Path(parsed["dir"]),
+        max_total_mb=cfg.get("max_attachment_mb", attachments.DEFAULT_MAX_TOTAL_MB))
 
     print(rendered["text"])
     print("-" * 55)
-    print(f"to:      {parsed['meta']['to']}")
+    print(f"to:      {', '.join(parsed['meta']['to'])}")
+    if parsed["meta"].get("cc"):
+        print(f"cc:      {', '.join(parsed['meta']['cc'])}")
+    if parsed["meta"].get("bcc"):
+        print(f"bcc:     {', '.join(parsed['meta']['bcc'])}")
     print(f"subject: {parsed['meta']['subject']}")
+    for f in attachments.summarise(files):
+        print(f"attach:  {f['fileName']}  ({f['kb']} KB)")
     if not args.yes:
         answer = input("\nSend this? type 'send' to confirm: ").strip().lower()
         if answer != "send":
             print("cancelled.")
             return 1
 
-    payload = send.build_payload(parsed, rendered, cfg)
+    payload = send.build_payload(parsed, rendered, cfg, attachments=files)
     result = send.post(payload, cfg)
     store.append_sent_log({
         "to": payload["to"], "subject": payload["subject"], "draft": parsed["path"],
@@ -199,7 +245,7 @@ def cmd_doctor(args) -> int:
 
     skills = Path.home() / ".claude" / "skills"
     _print_header("claude code skills")
-    for name in ("client-work", "client-update"):
+    for name in ("gmailsum", "client-work"):
         target = skills / name / "SKILL.md"
         print(f"  {'ok     ' if target.exists() else 'MISSING'}  {target}")
 
@@ -237,6 +283,11 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("templates", help="list installed templates")
     p.set_defaults(func=cmd_templates)
 
+    p = sub.add_parser("session", help="show what /gmailsum would read from the session")
+    p.add_argument("--cwd", default=".", help="directory of the session (default: here)")
+    p.add_argument("--session-id", default=None)
+    p.set_defaults(func=cmd_session)
+
     p = sub.add_parser("render", help="render a draft; writes an HTML preview")
     p.add_argument("draft")
     p.add_argument("--out", help="where to write the HTML preview")
@@ -260,7 +311,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return args.func(args)
     except (store.ConfigError, drafts.DraftError, render.TemplateError,
-            send.SendBlocked, send.SendFailed) as exc:
+            send.SendBlocked, send.SendFailed, session.SessionError,
+            attachments.AttachmentError) as exc:
         print(f"\n\033[31merror\033[0m {exc}", file=sys.stderr)
         return 1
     except KeyboardInterrupt:

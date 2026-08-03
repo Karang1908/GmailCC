@@ -135,10 +135,16 @@ if errorlevel 1 (
 REM --- claude code skills -------------------------------------------------
 echo.
 echo === Installing Claude Code skills ===
-for %%S in (client-work client-update) do (
+for %%S in (gmailsum client-work) do (
   if not exist "%SKILLS_DIR%\%%S" mkdir "%SKILLS_DIR%\%%S"
   copy /Y "%SRC%\skills\%%S\SKILL.md" "%SKILLS_DIR%\%%S\SKILL.md" >nul
   echo   [ok] /%%S
+)
+REM /client-update was folded into /gmailsum; two skills matching "email the
+REM client" would make Claude pick between them at random.
+if exist "%SKILLS_DIR%\client-update" (
+  rmdir /s /q "%SKILLS_DIR%\client-update"
+  echo   [ok] removed /client-update ^(superseded by /gmailsum^)
 )
 
 REM --- register the mcp server --------------------------------------------
@@ -167,7 +173,8 @@ echo.
 echo  One-time setup left - about 5 minutes:
 echo.
 echo    1. Set up n8n ^(import the workflow, connect Gmail^):
-echo       %APP_DIR%\n8n\SETUP.md
+echo       %APP_DIR%\SETUP.md
+echo       workflow to import: %APP_DIR%\n8n\clientmail-send.workflow.json
 echo.
 echo    2. Put your n8n webhook URL + secret in:
 echo       %HOME_DIR%\config.json
@@ -179,6 +186,6 @@ echo.
 echo  Note: allowed_recipients starts locked to one address, so the first
 echo  send to a real client is refused until you add them. That is deliberate.
 echo.
-echo  Then in any repo:  /client-work to start, /client-update when done.
+echo  Then in any repo, after doing some work:  /gmailsum
 echo.
 pause

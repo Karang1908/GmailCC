@@ -46,7 +46,7 @@ def check_recipients(meta: dict, cfg: dict) -> None:
     allowlist = cfg.get("allowed_recipients") or []
     if not allowlist:
         return
-    everyone = [meta["to"], *meta.get("cc", []), *meta.get("bcc", [])]
+    everyone = [*meta.get("to", []), *meta.get("cc", []), *meta.get("bcc", [])]
     blocked = [a for a in everyone if a and not _recipient_allowed(a, allowlist)]
     if blocked:
         raise SendBlocked(
@@ -56,10 +56,11 @@ def check_recipients(meta: dict, cfg: dict) -> None:
         )
 
 
-def build_payload(parsed: dict, rendered: dict, cfg: dict) -> dict:
+def build_payload(parsed: dict, rendered: dict, cfg: dict,
+                  attachments: list[dict] | None = None) -> dict:
     meta = parsed["meta"]
     return {
-        "to": meta["to"],
+        "to": ", ".join(meta.get("to", [])),
         "cc": ", ".join(meta.get("cc", [])),
         "bcc": ", ".join(meta.get("bcc", [])),
         "subject": meta["subject"],
@@ -70,6 +71,7 @@ def build_payload(parsed: dict, rendered: dict, cfg: dict) -> dict:
         "client": meta.get("client", ""),
         "template": rendered["template"],
         "draftHash": parsed["hash"],
+        "attachments": attachments or [],
     }
 
 

@@ -27,6 +27,7 @@ DEFAULT_CONFIG = {
     },
     "paused": False,
     "allowed_recipients": [],
+    "max_attachment_mb": 8,
     "clients": {},
 }
 

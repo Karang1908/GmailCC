@@ -13,6 +13,7 @@ Point config.json's webhook_url at http://127.0.0.1:8787/webhook/clientmail-send
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import re
 import time
@@ -61,12 +62,29 @@ class Handler(BaseHTTPRequestHandler):
         html_file.write_text(data["html"], encoding="utf-8")
         (OUTDIR / f"{stamp}-{slug}.txt").write_text(data.get("text", ""), encoding="utf-8")
 
+        # Decode attachments back to real files. If a screenshot survives this
+        # round trip byte-for-byte, the payload is correct and anything that goes
+        # wrong afterwards is n8n's binary handling, not ours.
+        written = []
+        for att in data.get("attachments") or []:
+            try:
+                raw = base64.b64decode(att["data"])
+            except (KeyError, ValueError, TypeError) as exc:
+                self._json(400, {"ok": False, "error": f"bad attachment encoding: {exc}"})
+                return
+            dest = OUTDIR / f"{stamp}-{att.get('fileName', 'attachment.bin')}"
+            dest.write_bytes(raw)
+            written.append(f"{dest.name} ({len(raw)} bytes, {att.get('mimeType')})")
+
         print(f"\n--- MOCK SEND ---------------------------------------")
         print(f"  to:      {data['to']}")
         print(f"  cc:      {data.get('cc') or '(none)'}")
+        print(f"  bcc:     {data.get('bcc') or '(none)'}")
         print(f"  subject: {data['subject']}")
         print(f"  from:    {data.get('fromName') or '(gmail default)'}")
         print(f"  html:    {len(data['html'])} bytes -> {html_file}")
+        for w in written:
+            print(f"  attach:  {w}")
         print(f"-----------------------------------------------------\n")
 
         self._json(200, {"ok": True, "messageId": f"mock-{stamp}", "threadId": f"mockthread-{stamp}"})

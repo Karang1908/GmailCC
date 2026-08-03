@@ -79,6 +79,8 @@ cp -R "$SRC/server" "$APP_DIR/server"
 cp -R "$SRC/n8n" "$APP_DIR/n8n" 2>/dev/null || true
 cp -R "$SRC/tools" "$APP_DIR/tools" 2>/dev/null || true
 cp "$SRC/config.example.json" "$APP_DIR/config.example.json"
+cp "$SRC/SETUP.md" "$APP_DIR/SETUP.md" 2>/dev/null || true
+cp "$SRC/README.md" "$APP_DIR/README.md" 2>/dev/null || true
 cp -R "$SRC/templates" "$APP_DIR/templates_stock"
 ok "code -> $APP_DIR"
 
@@ -125,11 +127,17 @@ esac
 # --- 5. claude code skills ------------------------------------------------
 step "Installing Claude Code skills"
 mkdir -p "$SKILLS_DIR"
-for skill in client-work client-update; do
+for skill in gmailsum client-work; do
   mkdir -p "$SKILLS_DIR/$skill"
   cp "$SRC/skills/$skill/SKILL.md" "$SKILLS_DIR/$skill/SKILL.md"
   ok "/$skill"
 done
+# /client-update was folded into /gmailsum. Leaving it installed would give two
+# skills matching "email the client", and Claude would pick between them at random.
+if [ -d "$SKILLS_DIR/client-update" ]; then
+  rm -rf "$SKILLS_DIR/client-update"
+  ok "removed /client-update (superseded by /gmailsum)"
+fi
 
 # --- 6. register the mcp server -------------------------------------------
 step "Registering the MCP server"
@@ -151,7 +159,8 @@ fi
 printf '\n%sInstalled.%s\n\n' "$bold" "$off"
 printf 'One-time setup left -- about 5 minutes:\n\n'
 printf '  1. Set up n8n (import the workflow, connect Gmail):\n'
-printf '     %s%s/n8n/SETUP.md%s\n\n' "$dim" "$APP_DIR" "$off"
+printf '     %s%s/SETUP.md%s\n' "$dim" "$APP_DIR" "$off"
+printf '     %sworkflow to import: %s/n8n/clientmail-send.workflow.json%s\n\n' "$dim" "$APP_DIR" "$off"
 printf '  2. Put your n8n webhook URL + secret in:\n'
 printf '     %s%s/config.json%s\n' "$dim" "$HOME_DIR" "$off"
 if [ "${FRESH_CONFIG:-0}" = 1 ]; then
@@ -161,4 +170,4 @@ printf '\n  3. Check it:            %sclientmail check --ping%s\n' "$bold" "$off
 printf '  4. Mail yourself first: %sclientmail test-email you@example.com%s\n\n' "$bold" "$off"
 printf '%sNote:%s allowed_recipients starts locked to one address, so the first send to a\n' "$yellow" "$off"
 printf 'real client will be refused until you add them. That is deliberate.\n\n'
-printf 'Then in any repo:  %s/client-work%s to start, %s/client-update%s when the work is done.\n\n' "$bold" "$off" "$bold" "$off"
+printf 'Then in any repo, after doing some work:  %s/gmailsum%s\n\n' "$bold" "$off"

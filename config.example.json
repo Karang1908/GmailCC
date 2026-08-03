@@ -15,6 +15,7 @@
 
   "paused": false,
   "allowed_recipients": ["your.own@email.com"],
+  "max_attachment_mb": 8,
 
   "clients": {
     "acme": {

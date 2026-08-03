@@ -16,13 +16,32 @@ import time
 import traceback
 from pathlib import Path
 
-from . import drafts, gitinfo, render, send, store
+from . import attachments, drafts, gitinfo, render, send, session, store
 
 SERVER_NAME = "clientmail"
 SERVER_VERSION = "1.0.0"
 DEFAULT_PROTOCOL = "2025-06-18"
 
 TOOLS = [
+    {
+        "name": "session_context",
+        "description": (
+            "Distil the current Claude Code session transcript into evidence for the email: "
+            "every prompt the user typed (verbatim, deduplicated), files created and edited, "
+            "commands run, and errors returned. Use this as the primary source for /gmailsum. "
+            "It is the record of what actually happened, which is not the same as what is "
+            "still in the context window."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "cwd": {"type": "string", "description": "Working directory of the session (the repo you are in)."},
+                "session_id": {"type": "string", "description": "Session UUID if known; otherwise the most recent transcript for cwd is used."},
+                "include_assistant": {"type": "boolean", "description": "Include the last few assistant messages. Default true."},
+            },
+            "required": ["cwd"],
+        },
+    },
     {
         "name": "work_start",
         "description": (
@@ -74,16 +93,17 @@ TOOLS = [
     {
         "name": "email_send",
         "description": (
-            "Send a reviewed draft via the n8n webhook. Refuses unless the file still hashes to "
-            "confirm_hash (i.e. nothing changed since the user approved it) and confirm_recipient "
-            "matches the draft's To: address. Only call this after the user has explicitly said to send."
+            "Send a reviewed draft via the n8n webhook, with any attachments listed in its "
+            "frontmatter. Refuses unless the file still hashes to confirm_hash (nothing changed "
+            "since the user approved it), the draft has a To: address, and confirm_recipient "
+            "matches it. Only call this after the user has explicitly said to send."
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "draft_path": {"type": "string"},
                 "confirm_hash": {"type": "string", "description": "Hash from the draft_render the user reviewed."},
-                "confirm_recipient": {"type": "string", "description": "The To: address, restated so it is visible in the approval prompt."},
+                "confirm_recipient": {"type": "string", "description": "Every To: address, comma-separated, restated so recipients are visible in the approval prompt."},
                 "dry_run": {"type": "boolean", "description": "Run every check and build the payload, but do not POST. Default false."},
             },
             "required": ["draft_path", "confirm_hash", "confirm_recipient"],
@@ -111,6 +131,15 @@ TOOLS = [
 
 
 # --- tool implementations ------------------------------------------------
+
+def tool_session_context(args: dict) -> dict:
+    digest = session.digest(
+        args["cwd"],
+        session_id=args.get("session_id"),
+        include_assistant=args.get("include_assistant", True),
+    )
+    return {"ok": True, **digest, "drafts_dir": str(store.drafts_dir())}
+
 
 def tool_work_start(args: dict) -> dict:
     repo = gitinfo.repo_root(args["repo_path"])
@@ -165,27 +194,53 @@ def tool_work_status(args: dict) -> dict:
 def tool_draft_render(args: dict) -> dict:
     cfg = store.load_config()
     parsed = drafts.read(args["draft_path"])
+    meta = parsed["meta"]
     rendered = render.render_draft(parsed, cfg)
-    return {
+
+    files = attachments.collect(
+        meta.get("attachments", []), draft_dir=Path(parsed["dir"]),
+        max_total_mb=cfg.get("max_attachment_mb", attachments.DEFAULT_MAX_TOTAL_MB),
+    )
+    needs_recipients = not meta.get("to")
+
+    result = {
         "ok": True,
         "path": parsed["path"],
         "hash": parsed["hash"],
-        "to": parsed["meta"]["to"],
-        "cc": parsed["meta"].get("cc", []),
-        "subject": parsed["meta"]["subject"],
+        "to": meta.get("to", []),
+        "cc": meta.get("cc", []),
+        "bcc": meta.get("bcc", []),
+        "subject": meta["subject"],
         "template": rendered["template"],
         "text_preview": rendered["text"],
         "html_bytes": len(rendered["html"]),
-        "next": (
-            "Show text_preview to the user. To send, call email_send with "
-            f"confirm_hash={parsed['hash']!r} and confirm_recipient={parsed['meta']['to']!r}."
-        ),
+        "attachments": attachments.summarise(files),
+        "needs_recipients": needs_recipients,
     }
+    if needs_recipients:
+        result["next"] = (
+            "Show text_preview to the user for approval of the CONTENT. Then ask them for "
+            "the recipients -- To, CC and BCC separately, comma-separated for several people "
+            "-- write those into the frontmatter, and render again before sending."
+        )
+    else:
+        result["next"] = (
+            "Show text_preview and the headers to the user. To send, call email_send with "
+            f"confirm_hash={parsed['hash']!r} and confirm_recipient="
+            f"{', '.join(meta['to'])!r}."
+        )
+    return result
+
+
+def _same_recipients(confirmed: str, actual: list[str]) -> bool:
+    stated = {a.strip().lower() for a in confirmed.split(",") if a.strip()}
+    return stated == {a.strip().lower() for a in actual}
 
 
 def tool_email_send(args: dict) -> dict:
     cfg = store.load_config()
     parsed = drafts.read(args["draft_path"])
+    meta = parsed["meta"]
     dry_run = bool(args.get("dry_run", False))
 
     if parsed["hash"] != args["confirm_hash"]:
@@ -194,16 +249,22 @@ def tool_email_send(args: dict) -> dict:
             f"{args['confirm_hash']}, file is now {parsed['hash']}. Re-run draft_render, show "
             f"the user what it says now, and only send once they approve the new version."
         )
-    if parsed["meta"]["to"].strip().lower() != args["confirm_recipient"].strip().lower():
+    drafts.require_recipients(meta)
+    if not _same_recipients(args["confirm_recipient"], meta["to"]):
         raise send.SendBlocked(
             f"confirm_recipient {args['confirm_recipient']!r} does not match the draft's "
-            f"To: {parsed['meta']['to']!r}. Refusing in case the wrong draft was passed."
+            f"To: {', '.join(meta['to'])!r}. Refusing in case the wrong draft was passed. "
+            f"List every To: address, comma-separated."
         )
 
     send.preflight(cfg)
-    send.check_recipients(parsed["meta"], cfg)
+    send.check_recipients(meta, cfg)
     rendered = render.render_draft(parsed, cfg)
-    payload = send.build_payload(parsed, rendered, cfg)
+    files = attachments.collect(
+        meta.get("attachments", []), draft_dir=Path(parsed["dir"]),
+        max_total_mb=cfg.get("max_attachment_mb", attachments.DEFAULT_MAX_TOTAL_MB),
+    )
+    payload = send.build_payload(parsed, rendered, cfg, attachments=files)
 
     if dry_run:
         return {
@@ -211,21 +272,27 @@ def tool_email_send(args: dict) -> dict:
             "dry_run": True,
             "sent": False,
             "would_post_to": cfg["webhook_url"],
-            "payload_preview": {k: v for k, v in payload.items() if k not in ("html", "text")},
+            "payload_preview": {k: v for k, v in payload.items()
+                                if k not in ("html", "text", "attachments")},
+            "attachments": attachments.summarise(files),
             "html_bytes": len(payload["html"]),
         }
 
     result = send.post(payload, cfg)
     store.append_sent_log({
-        "to": payload["to"], "cc": payload["cc"], "subject": payload["subject"],
-        "draft": parsed["path"], "hash": parsed["hash"],
+        "to": payload["to"], "cc": payload["cc"], "bcc": payload["bcc"],
+        "subject": payload["subject"], "draft": parsed["path"], "hash": parsed["hash"],
         "client": payload["client"], "status": result["status"],
+        "attachments": [f["fileName"] for f in files],
     })
     return {
         "ok": True,
         "sent": True,
         "to": payload["to"],
+        "cc": payload["cc"],
+        "bcc": payload["bcc"],
         "subject": payload["subject"],
+        "attachments": [f["fileName"] for f in files],
         "n8n_status": result["status"],
         "n8n_response": result["body"],
         "logged_to": str(store.sent_log()),
@@ -316,6 +383,7 @@ def tool_config_check(args: dict) -> dict:
 
 
 HANDLERS = {
+    "session_context": tool_session_context,
     "work_start": tool_work_start,
     "work_status": tool_work_status,
     "draft_render": tool_draft_render,
@@ -327,6 +395,7 @@ HANDLERS = {
 EXPECTED_ERRORS = (
     store.ConfigError, drafts.DraftError, render.TemplateError,
     gitinfo.GitError, send.SendBlocked, send.SendFailed,
+    session.SessionError, attachments.AttachmentError,
 )
 
 

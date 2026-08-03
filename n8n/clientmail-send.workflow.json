@@ -1,5 +1,5 @@
 {
-  "name": "ClientMail — Send",
+  "name": "ClientMail \u2014 Send",
   "nodes": [
     {
       "parameters": {
@@ -8,22 +8,28 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "id": "cm000001-0000-4000-8000-000000000001",
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [-220, 0],
-      "webhookId": "a1b2c3d4-0001-4000-8000-000000000001"
+      "position": [
+        -460,
+        0
+      ],
+      "webhookId": "cm000001-0000-4000-8000-000000000001"
     },
     {
       "parameters": {
-        "jsCode": "// ---------------------------------------------------------------\n// PUT YOUR SHARED SECRET HERE. It must match \"webhook_secret\" in\n// ~/.clientmail/config.json. Anyone who learns your webhook URL can\n// send mail from your Gmail account without it.\nconst SECRET = 'REPLACE_WITH_YOUR_SECRET';\n// ---------------------------------------------------------------\n\nconst item = $input.first().json;\nconst body = item.body ?? item;\n\nif (SECRET && SECRET !== 'REPLACE_WITH_YOUR_SECRET' && body.secret !== SECRET) {\n  throw new Error('Unauthorized: webhook secret does not match');\n}\n\n// Connectivity probe from `config_check` — answer without sending anything.\nif (body.probe === true) {\n  return [{ json: { probe: true, ok: true } }];\n}\n\nfor (const field of ['to', 'subject', 'html']) {\n  if (!body[field]) {\n    throw new Error('Missing required field: ' + field);\n  }\n}\n\nreturn [{\n  json: {\n    probe: false,\n    to: String(body.to),\n    cc: String(body.cc || ''),\n    bcc: String(body.bcc || ''),\n    subject: String(body.subject),\n    html: String(body.html),\n    text: String(body.text || ''),\n    fromName: String(body.fromName || ''),\n    replyTo: String(body.replyTo || ''),\n    draftHash: String(body.draftHash || ''),\n  },\n}];"
+        "jsCode": "// ---------------------------------------------------------------\n// PUT YOUR SHARED SECRET HERE. It must match \"webhook_secret\" in\n// ~/.clientmail/config.json. Anyone who learns your webhook URL can\n// send mail from your Gmail account without it.\nconst SECRET = 'REPLACE_WITH_YOUR_SECRET';\n// ---------------------------------------------------------------\n\nconst item = $input.first().json;\nconst body = item.body ?? item;\n\nif (SECRET && SECRET !== 'REPLACE_WITH_YOUR_SECRET' && body.secret !== SECRET) {\n  throw new Error('Unauthorized: webhook secret does not match');\n}\n\n// Connectivity probe from `clientmail check --ping` -- answer without sending.\nif (body.probe === true) {\n  return [{ json: { probe: true, ok: true, hasAttachments: false } }];\n}\n\nfor (const field of ['to', 'subject', 'html']) {\n  if (!body[field]) {\n    throw new Error('Missing required field: ' + field);\n  }\n}\n\n// Turn the base64 attachments from the payload into n8n binary data.\n// The Gmail node reads these by name, comma-separated, from attachmentFields.\nconst binary = {};\nconst names = [];\nconst atts = Array.isArray(body.attachments) ? body.attachments : [];\natts.forEach((a, i) => {\n  const key = 'attachment_' + i;\n  binary[key] = {\n    data: a.data,\n    mimeType: a.mimeType || 'application/octet-stream',\n    fileName: a.fileName || key,\n  };\n  names.push(key);\n});\n\nreturn [{\n  json: {\n    probe: false,\n    hasAttachments: names.length > 0,\n    attachmentFields: names.join(','),\n    attachmentCount: names.length,\n    to: String(body.to),\n    cc: String(body.cc || ''),\n    bcc: String(body.bcc || ''),\n    subject: String(body.subject),\n    html: String(body.html),\n    text: String(body.text || ''),\n    fromName: String(body.fromName || ''),\n    replyTo: String(body.replyTo || ''),\n    draftHash: String(body.draftHash || ''),\n  },\n  binary,\n}];"
       },
-      "id": "a1b2c3d4-0002-4000-8000-000000000002",
+      "id": "cm000002-0000-4000-8000-000000000002",
       "name": "Validate",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [0, 0]
+      "position": [
+        -240,
+        0
+      ]
     },
     {
       "parameters": {
@@ -36,7 +42,7 @@
           },
           "conditions": [
             {
-              "id": "is-probe",
+              "id": "Is probe?-cond",
               "leftValue": "={{ $json.probe }}",
               "rightValue": "",
               "operator": {
@@ -51,11 +57,14 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "a1b2c3d4-0003-4000-8000-000000000003",
+      "id": "cm000003-0000-4000-8000-000000000003",
       "name": "Is probe?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [220, 0]
+      "position": [
+        -20,
+        0
+      ]
     },
     {
       "parameters": {
@@ -63,11 +72,82 @@
         "responseBody": "={{ JSON.stringify({ ok: true, probe: true }) }}",
         "options": {}
       },
-      "id": "a1b2c3d4-0004-4000-8000-000000000004",
+      "id": "cm000004-0000-4000-8000-000000000004",
       "name": "Respond Probe",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [460, -120]
+      "position": [
+        200,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "Has attachments?-cond",
+              "leftValue": "={{ $json.hasAttachments }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "cm000005-0000-4000-8000-000000000005",
+      "name": "Has attachments?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        200,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false,
+          "ccList": "={{ $json.cc }}",
+          "bccList": "={{ $json.bcc }}",
+          "replyTo": "={{ $json.replyTo }}",
+          "senderName": "={{ $json.fromName }}",
+          "attachmentsUi": {
+            "attachmentsBinary": [
+              {
+                "property": "={{ $json.attachmentFields }}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "cm000006-0000-4000-8000-000000000006",
+      "name": "Send with attachments",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        430,
+        20
+      ],
+      "notes": "Select your Gmail credential here after import."
     },
     {
       "parameters": {
@@ -85,12 +165,15 @@
           "senderName": "={{ $json.fromName }}"
         }
       },
-      "id": "a1b2c3d4-0005-4000-8000-000000000005",
-      "name": "Send via Gmail",
+      "id": "cm000007-0000-4000-8000-000000000007",
+      "name": "Send plain",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
-      "position": [460, 100],
-      "notes": "Pick your Gmail credential here after import."
+      "position": [
+        430,
+        200
+      ],
+      "notes": "Select your Gmail credential here after import."
     },
     {
       "parameters": {
@@ -98,30 +181,100 @@
         "responseBody": "={{ JSON.stringify({ ok: true, messageId: $json.id || '', threadId: $json.threadId || '' }) }}",
         "options": {}
       },
-      "id": "a1b2c3d4-0006-4000-8000-000000000006",
+      "id": "cm000008-0000-4000-8000-000000000008",
       "name": "Respond Sent",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [700, 100]
+      "position": [
+        680,
+        100
+      ]
     }
   ],
   "connections": {
     "Webhook": {
-      "main": [[{ "node": "Validate", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Validate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Validate": {
-      "main": [[{ "node": "Is probe?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Is probe?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Is probe?": {
       "main": [
-        [{ "node": "Respond Probe", "type": "main", "index": 0 }],
-        [{ "node": "Send via Gmail", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Respond Probe",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Has attachments?",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
-    "Send via Gmail": {
-      "main": [[{ "node": "Respond Sent", "type": "main", "index": 0 }]]
+    "Has attachments?": {
+      "main": [
+        [
+          {
+            "node": "Send with attachments",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send plain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send with attachments": {
+      "main": [
+        [
+          {
+            "node": "Respond Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send plain": {
+      "main": [
+        [
+          {
+            "node": "Respond Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "pinData": {}
 }
