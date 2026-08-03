@@ -93,8 +93,8 @@
           "ccEmail": "={{ $json.cc }}",
           "bccEmail": "={{ $json.bcc }}",
           "replyTo": "={{ $json.replyTo }}",
-          "fileAttachments": "={{ $json.attachmentFields }}",
-          "appendAttribution": false
+          "appendAttribution": false,
+          "attachments": "={{ $json.attachmentFields }}"
         }
       },
       "id": "cm000005-0000-4000-8000-000000000005",

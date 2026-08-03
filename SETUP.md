@@ -231,8 +231,7 @@ hand:
 
 **Send Email**: From `{{ $json.from }}`, To `{{ $json.to }}`, Subject `{{ $json.subject }}`,
 Email Format `Both`, Text `{{ $json.text }}`, HTML `{{ $json.html }}`; Options → CC
-`{{ $json.cc }}`, BCC `{{ $json.bcc }}`, Reply To `{{ $json.replyTo }}`, Attachments (File)
-`{{ $json.attachmentFields }}`, **Append Attribution off**.
+`{{ $json.cc }}`, BCC `{{ $json.bcc }}`, Reply To `{{ $json.replyTo }}`, Attachments `{{ $json.attachmentFields }}`, **Append Attribution off**.
 
 Wiring: `Is probe?` true → Respond Probe, false → Send Email → Respond Sent.
 
@@ -250,7 +249,7 @@ Run `clientmail doctor` first — Python, git, install paths, skills, recent sen
 | `Invalid login` / `535` | Wrong app password, or you used your normal Google password |
 | Email arrives from the wrong address | `from_email` isn't the account the app password belongs to |
 | "sent automatically with n8n" | Append Attribution still on in the Send Email node |
-| Attachments missing | Options → Attachments (File) must be `{{ $json.attachmentFields }}` — the *File* one, not Inline |
+| Attachments missing | Options → Attachments must be `{{ $json.attachmentFields }}` (in some n8n versions this option is called *Attachments (File)*) |
 | Raw HTML in the body | Email Format is `Text`, should be `Both` |
 | Recipient refused | `allowed_recipients` — add the address or `"@theirdomain.com"` |
 | Sending refused entirely | `"paused": true`, or `from_email` is unset |

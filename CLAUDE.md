@@ -77,9 +77,16 @@ Verified against `EmailSend/v2/send.operation.ts`:
   `text`, `html`.
 - Inside `options`: `ccEmail`, `bccEmail`, `replyTo`, `attachments` (inline, `cid:` refs),
   `fileAttachments` (regular attachments), `appendAttribution`, `allowUnauthorizedCerts`.
-- Both attachment fields are plain **comma-separated strings** of binary property names,
-  and execute() guards with `if (options.fileAttachments)` before splitting — so an empty
-  string is safe. This is why one send node covers mail with and without attachments.
+- **The attachment option key is version-dependent, and getting it wrong fails silently.**
+  On the released node (verified by reading `send.operation.js` inside a live n8n 2.8.4
+  install) it is `options.attachments` — a comma-separated string of binary property names,
+  consumed via `if (options.attachments && item.binary)`. n8n's `master` branch has since
+  renamed this to `fileAttachments` and repurposed `attachments` for inline `cid:` images.
+  **Read the node source in the target install, not the docs or master.** n8n silently
+  drops option keys it does not recognise on import, so a wrong key produces a workflow
+  that looks fine and never attaches anything.
+- The guard means an empty string is safe, which is why one send node covers mail with and
+  without attachments.
   (The Gmail node is the opposite: `assertBinaryData` **throws** on an empty name, which
   forced a two-node branch when we used it. Don't reintroduce that pattern here.)
 - `appendAttribution: false` matters — otherwise every client email ends with "This email
