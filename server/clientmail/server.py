@@ -326,7 +326,7 @@ def tool_config_check(args: dict) -> dict:
         if "YOURNAME.app.n8n.cloud" in str(cfg.get("webhook_url", "")):
             problems.append(
                 "webhook_url is still the example value. Paste your n8n Production webhook "
-                "URL -- see n8n/SETUP.md.")
+                f"URL -- see {store.home() / 'app' / 'SETUP.md'}.")
         if "paste-the-same-secret" in str(cfg.get("webhook_secret", "")):
             problems.append(
                 "webhook_secret is still the example value. Generate one and put the same "
